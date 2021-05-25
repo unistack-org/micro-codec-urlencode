@@ -1,5 +1,5 @@
 module github.com/unistack-org/micro-codec-urlencode/v3
 
-go 1.15
+go 1.16
 
-require github.com/unistack-org/micro/v3 v3.3.13
+require github.com/unistack-org/micro/v3 v3.3.19

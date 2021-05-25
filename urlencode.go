@@ -3,7 +3,6 @@ package urlencode
 
 import (
 	"io"
-	"io/ioutil"
 
 	"github.com/unistack-org/micro/v3/codec"
 	rutil "github.com/unistack-org/micro/v3/util/reflect"
@@ -11,30 +10,37 @@ import (
 
 type urlencodeCodec struct{}
 
-func (c *urlencodeCodec) Marshal(b interface{}) ([]byte, error) {
-	switch m := b.(type) {
-	case nil:
+const (
+	flattenTag = "flatten"
+)
+
+func (c *urlencodeCodec) Marshal(v interface{}) ([]byte, error) {
+	if v == nil {
 		return nil, nil
-	case *codec.Frame:
+	}
+
+	if m, ok := v.(*codec.Frame); ok {
 		return m.Data, nil
 	}
 
-	v, err := rutil.StructURLValues(b, "", []string{"protobuf", "json"})
+	if nv, nerr := rutil.StructFieldByTag(v, codec.DefaultTagName, flattenTag); nerr == nil {
+		v = nv
+	}
+
+	uv, err := rutil.StructURLValues(v, "", []string{"protobuf", "json"})
 	if err != nil {
 		return nil, err
 	}
 
-	return []byte(v.Encode()), nil
+	return []byte(uv.Encode()), nil
 }
 
 func (c *urlencodeCodec) Unmarshal(b []byte, v interface{}) error {
-	if len(b) == 0 {
+	if len(b) == 0 || v == nil {
 		return nil
 	}
-	switch m := v.(type) {
-	case nil:
-		return nil
-	case *codec.Frame:
+
+	if m, ok := v.(*codec.Frame); ok {
 		m.Data = b
 		return nil
 	}
@@ -44,6 +50,10 @@ func (c *urlencodeCodec) Unmarshal(b []byte, v interface{}) error {
 		return err
 	}
 
+	if nv, nerr := rutil.StructFieldByTag(v, codec.DefaultTagName, flattenTag); nerr == nil {
+		v = nv
+	}
+
 	return rutil.Merge(v, rutil.FlattenMap(mp), rutil.Tags([]string{"protobuf", "json"}), rutil.SliceAppend(true))
 }
 
@@ -51,52 +61,37 @@ func (c *urlencodeCodec) ReadHeader(conn io.Reader, m *codec.Message, t codec.Me
 	return nil
 }
 
-func (c *urlencodeCodec) ReadBody(conn io.Reader, b interface{}) error {
-	switch m := b.(type) {
-	case nil:
-		return nil
-	case *codec.Frame:
-		buf, err := ioutil.ReadAll(conn)
-		if err != nil {
-			return err
-		} else if len(buf) == 0 {
-			return nil
-		}
-		m.Data = buf
+func (c *urlencodeCodec) ReadBody(conn io.Reader, v interface{}) error {
+	if v == nil {
 		return nil
 	}
 
-	buf, err := ioutil.ReadAll(conn)
+	buf, err := io.ReadAll(conn)
 	if err != nil {
 		return err
 	} else if len(buf) == 0 {
 		return nil
 	}
 
-	return c.Unmarshal(buf, b)
+	return c.Unmarshal(buf, v)
 }
 
-func (c *urlencodeCodec) Write(conn io.Writer, m *codec.Message, b interface{}) error {
-	switch m := b.(type) {
-	case nil:
+func (c *urlencodeCodec) Write(conn io.Writer, m *codec.Message, v interface{}) error {
+	if v == nil {
 		return nil
-	case *codec.Frame:
-		_, err := conn.Write(m.Data)
-		return err
 	}
 
-	buf, err := c.Marshal(b)
+	buf, err := c.Marshal(v)
 	if err != nil {
 		return err
 	}
 
 	_, err = conn.Write(buf)
-
 	return err
 }
 
 func (c *urlencodeCodec) String() string {
-	return "json"
+	return "urlencode"
 }
 
 func NewCodec() codec.Codec {

@@ -8,26 +8,34 @@ import (
 	rutil "github.com/unistack-org/micro/v3/util/reflect"
 )
 
-type urlencodeCodec struct{}
+type urlencodeCodec struct {
+	opts codec.Options
+}
+
+var _ codec.Codec = &urlencodeCodec{}
 
 const (
 	flattenTag = "flatten"
 )
 
-func (c *urlencodeCodec) Marshal(v interface{}) ([]byte, error) {
+func (c *urlencodeCodec) Marshal(v interface{}, opts ...codec.Option) ([]byte, error) {
 	if v == nil {
 		return nil, nil
+	}
+
+	options := c.opts
+	for _, o := range opts {
+		o(&options)
+	}
+	if nv, nerr := rutil.StructFieldByTag(v, options.TagName, flattenTag); nerr == nil {
+		v = nv
 	}
 
 	if m, ok := v.(*codec.Frame); ok {
 		return m.Data, nil
 	}
 
-	if nv, nerr := rutil.StructFieldByTag(v, codec.DefaultTagName, flattenTag); nerr == nil {
-		v = nv
-	}
-
-	uv, err := rutil.StructURLValues(v, "", []string{"protobuf", "json"})
+	uv, err := rutil.StructURLValues(v, "", []string{"protobuf", "json", "xml", "yaml"})
 	if err != nil {
 		return nil, err
 	}
@@ -35,9 +43,18 @@ func (c *urlencodeCodec) Marshal(v interface{}) ([]byte, error) {
 	return []byte(uv.Encode()), nil
 }
 
-func (c *urlencodeCodec) Unmarshal(b []byte, v interface{}) error {
+func (c *urlencodeCodec) Unmarshal(b []byte, v interface{}, opts ...codec.Option) error {
 	if len(b) == 0 || v == nil {
 		return nil
+	}
+
+	options := c.opts
+	for _, o := range opts {
+		o(&options)
+	}
+
+	if nv, nerr := rutil.StructFieldByTag(v, options.TagName, flattenTag); nerr == nil {
+		v = nv
 	}
 
 	if m, ok := v.(*codec.Frame); ok {
@@ -50,11 +67,7 @@ func (c *urlencodeCodec) Unmarshal(b []byte, v interface{}) error {
 		return err
 	}
 
-	if nv, nerr := rutil.StructFieldByTag(v, codec.DefaultTagName, flattenTag); nerr == nil {
-		v = nv
-	}
-
-	return rutil.Merge(v, rutil.FlattenMap(mp), rutil.Tags([]string{"protobuf", "json"}), rutil.SliceAppend(true))
+	return rutil.Merge(v, rutil.FlattenMap(mp), rutil.Tags([]string{"protobuf", "json", "xml", "yaml"}), rutil.SliceAppend(true))
 }
 
 func (c *urlencodeCodec) ReadHeader(conn io.Reader, m *codec.Message, t codec.MessageType) error {
@@ -94,6 +107,6 @@ func (c *urlencodeCodec) String() string {
 	return "urlencode"
 }
 
-func NewCodec() codec.Codec {
-	return &urlencodeCodec{}
+func NewCodec(opts ...codec.Option) *urlencodeCodec {
+	return &urlencodeCodec{opts: codec.NewOptions(opts...)}
 }

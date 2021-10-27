@@ -1,5 +1,5 @@
 // Package urlencode provides a urlencode codec
-package urlencode
+package urlencode // import "go.unistack.org/micro-codec-urlencode/v3"
 
 import (
 	"io"

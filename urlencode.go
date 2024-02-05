@@ -1,12 +1,14 @@
 // Package urlencode provides a urlencode codec
-package urlencode // import "go.unistack.org/micro-codec-urlencode/v3"
+package urlencode
 
 import (
+	"encoding/json"
 	"io"
 
 	pb "go.unistack.org/micro-proto/v3/codec"
 	"go.unistack.org/micro/v3/codec"
 	rutil "go.unistack.org/micro/v3/util/reflect"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type urlencodeCodec struct {
@@ -72,6 +74,16 @@ func (c *urlencodeCodec) Unmarshal(b []byte, v interface{}, opts ...codec.Option
 
 	mp, err := rutil.URLMap(string(b))
 	if err != nil {
+		return err
+	}
+
+	switch t := v.(type) {
+	case *structpb.Value:
+
+		buf, err := json.Marshal(mp)
+		if err == nil {
+			err = t.UnmarshalJSON(buf)
+		}
 		return err
 	}
 

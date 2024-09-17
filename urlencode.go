@@ -3,7 +3,6 @@ package urlencode
 
 import (
 	"encoding/json"
-	"io"
 
 	pb "go.unistack.org/micro-proto/v3/codec"
 	"go.unistack.org/micro/v3/codec"
@@ -17,10 +16,6 @@ type urlencodeCodec struct {
 
 var _ codec.Codec = &urlencodeCodec{}
 
-const (
-	flattenTag = "flatten"
-)
-
 func (c *urlencodeCodec) Marshal(v interface{}, opts ...codec.Option) ([]byte, error) {
 	if v == nil {
 		return nil, nil
@@ -30,8 +25,11 @@ func (c *urlencodeCodec) Marshal(v interface{}, opts ...codec.Option) ([]byte, e
 	for _, o := range opts {
 		o(&options)
 	}
-	if nv, nerr := rutil.StructFieldByTag(v, options.TagName, flattenTag); nerr == nil {
-		v = nv
+
+	if options.Flatten {
+		if nv, nerr := rutil.StructFieldByTag(v, options.TagName, "flatten"); nerr == nil {
+			v = nv
+		}
 	}
 
 	switch m := v.(type) {
@@ -59,8 +57,10 @@ func (c *urlencodeCodec) Unmarshal(b []byte, v interface{}, opts ...codec.Option
 		o(&options)
 	}
 
-	if nv, nerr := rutil.StructFieldByTag(v, options.TagName, flattenTag); nerr == nil {
-		v = nv
+	if options.Flatten {
+		if nv, nerr := rutil.StructFieldByTag(v, options.TagName, "flatten"); nerr == nil {
+			v = nv
+		}
 	}
 
 	switch m := v.(type) {
@@ -88,39 +88,6 @@ func (c *urlencodeCodec) Unmarshal(b []byte, v interface{}, opts ...codec.Option
 	}
 
 	return rutil.Merge(v, rutil.FlattenMap(mp), rutil.Tags([]string{"protobuf", "json", "xml", "yaml"}), rutil.SliceAppend(true))
-}
-
-func (c *urlencodeCodec) ReadHeader(conn io.Reader, m *codec.Message, t codec.MessageType) error {
-	return nil
-}
-
-func (c *urlencodeCodec) ReadBody(conn io.Reader, v interface{}) error {
-	if v == nil {
-		return nil
-	}
-
-	buf, err := io.ReadAll(conn)
-	if err != nil {
-		return err
-	} else if len(buf) == 0 {
-		return nil
-	}
-
-	return c.Unmarshal(buf, v)
-}
-
-func (c *urlencodeCodec) Write(conn io.Writer, m *codec.Message, v interface{}) error {
-	if v == nil {
-		return nil
-	}
-
-	buf, err := c.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	_, err = conn.Write(buf)
-	return err
 }
 
 func (c *urlencodeCodec) String() string {

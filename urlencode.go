@@ -37,6 +37,7 @@ func (c *urlencodeCodec) Marshal(v interface{}, opts ...codec.Option) ([]byte, e
 		return m.Data, nil
 	case *pb.Frame:
 		return m.Data, nil
+
 	}
 
 	uv, err := rutil.StructURLValues(v, "", []string{"protobuf", "json", "xml", "yaml"})
@@ -69,6 +70,12 @@ func (c *urlencodeCodec) Unmarshal(b []byte, v interface{}, opts ...codec.Option
 		return nil
 	case *pb.Frame:
 		m.Data = b
+		return nil
+	case *codec.RawMessage:
+		*m = append((*m)[0:0], b...)
+		return nil
+	case codec.RawMessage:
+		copy(m, b)
 		return nil
 	}
 
